@@ -35,11 +35,24 @@ module.exports = function(fileInfo, api, options) {
     .toSource();
 };
 
+/**
+ * Get the specified code block as string. Block is identified by enclosing set of curly
+ * braces i.e {...}.
+ *
+ * @param {String} source            Source string code which needs to be searched  
+ * @param {String} blockIdentifier   Identifier for the block which can be used to uniquely determine the block start
+ */
 const getBlockAsString = (source, blockIdentifier) => {
   const indexes = getBlockBoundingIndexes(source, blockIdentifier);
   return indexes !== null && source.substring(indexes.startIndex, indexes.endIndex);
 };
 
+/**
+ * Get the startIndex and endIndex for a specified block of code.
+ *
+ * @param {String} source            Source string code which needs to be searched  
+ * @param {String} blockIdentifier   Identifier for the block which can be used to uniquely determine the block start
+ */
 const getBlockBoundingIndexes = (source, blockIdentifier) => {
   const defPropStart = getBlockStartIndex(source, blockIdentifier);
   if (defPropStart !== -1) {
@@ -66,8 +79,20 @@ const getBlockBoundingIndexes = (source, blockIdentifier) => {
   return null;
 };
 
+/**
+ * Get the startIndex of the block of code.
+ *
+ * @param {String} source            Source string code which needs to be searched  
+ * @param {String} blockIdentifier   Identifier for the block which can be used to uniquely determine the block start
+ */
 const getBlockStartIndex = (source, blockIdentifier) => source.indexOf(blockIdentifier);
 
+/**
+ * Modify the provided string block of defaultProps using the options passed.
+ *
+ * @param {String} strDefProps  String representation of default props
+ * @param {Object} options      Options for transformation
+ */
 const modifyDefaultProps = (strDefProps, options) => {
   const {NEW_LINE_CHAR, TAB_CHAR} = options;
   let strProps = strDefProps.replace('{', '');
@@ -88,6 +113,11 @@ const modifyDefaultProps = (strDefProps, options) => {
   return `{${props.join(',')}${TAB_CHAR}}`;
 };
 
+/**
+ * Get the string representation of the new prop which should be added in default props.
+ *
+ * @param {Object} options      Options for transformation
+ */
 const getNewDefaultProp = options => {
   const {DEFAULT_PROP_NAME, DEFAULT_PROP_VALUE, NEW_LINE_CHAR, TAB_CHAR} = options;
   return `${NEW_LINE_CHAR}${TAB_CHAR}${TAB_CHAR}${DEFAULT_PROP_NAME}: ${DEFAULT_PROP_VALUE}${NEW_LINE_CHAR}`
