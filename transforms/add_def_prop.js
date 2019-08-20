@@ -1,25 +1,30 @@
-const DEFAULT_PROPS_IDENTIFIER = 'static defaultProps';
-const PROP_TYPES_IDENTIFIER = 'static propTypes';
-const TAB_CHAR = '  ';
-const NEW_LINE_CHAR = '\n';
-const DEFAULT_PROP_NAME = 'dataCmp';
-const DEFAULT_PROP_VALUE = 'getDataCmpAttribute(this)';
-const DEFAULT_IMPORT_STATEMENT = 'import {getDataCmpAttribute} from "../utilities/ComponentUtilities";';
-
-module.exports = function(fileInfo, api) {
+module.exports = function(fileInfo, api, options) {
   let j = api.jscodeshift;
+  if (!options.propName || !options.propValue) {
+    throw '"propName" and "propValue" options are required.';
+  }
+  const newOptions = {
+    'DEFAULT_PROPS_IDENTIFIER': options.defaultPropsIdentifier || 'static defaultProps',
+    'PROP_TYPES_IDENTIFIER': options.propTypesIdentifier || 'static propTypes',
+    'TAB_CHAR': options.tab || '  ',
+    'NEW_LINE_CHAR': options.newline || '\n',
+    'DEFAULT_PROP_NAME': options.propName,
+    'DEFAULT_PROP_VALUE': options.propValue
+  };
 
-  let source = fileInfo.source;
-  let strDefProps = getBlockAsString(source, DEFAULT_PROPS_IDENTIFIER);
+  const source = fileInfo.source;
+  let strDefProps = getBlockAsString(source, newOptions.DEFAULT_PROPS_IDENTIFIER);
+
   let newSource = source;
+
   if (strDefProps) {
-    let modifiedProps = modifyDefaultProps(strDefProps);
+    const modifiedProps = modifyDefaultProps(strDefProps, newOptions);
     newSource = source.replace(strDefProps, modifiedProps);
   } else {
-    let propTypeBounds = getBlockBoundingIndexes(source, PROP_TYPES_IDENTIFIER);
-    let defaultProps = `${NEW_LINE_CHAR}${NEW_LINE_CHAR}${TAB_CHAR}${DEFAULT_PROPS_IDENTIFIER} = {${TAB_CHAR}${TAB_CHAR}${getNewDefaultProp()}${TAB_CHAR}}`;
-    newSource = newSource.slice(0, propTypeBounds.endIndex + 1) + defaultProps + newSource.slice(propTypeBounds.endIndex + 1);
-    
+    const propTypeBounds = getBlockBoundingIndexes(source, newOptions.PROP_TYPES_IDENTIFIER);
+    const defPropDeclaration = `${newOptions.NEW_LINE_CHAR}${newOptions.NEW_LINE_CHAR}${newOptions.TAB_CHAR}${newOptions.DEFAULT_PROPS_IDENTIFIER} = `;
+    const defPropAssignment = `{${newOptions.TAB_CHAR}${newOptions.TAB_CHAR}${getNewDefaultProp(newOptions)}${newOptions.TAB_CHAR}}`;
+    newSource = newSource.slice(0, propTypeBounds.endIndex + 1) + defPropDeclaration + defPropAssignment + newSource.slice(propTypeBounds.endIndex + 1);
   }
 
   console.log(newSource);
@@ -63,7 +68,8 @@ const getBlockBoundingIndexes = (source, blockIdentifier) => {
 
 const getBlockStartIndex = (source, blockIdentifier) => source.indexOf(blockIdentifier);
 
-const modifyDefaultProps = strDefProps => {
+const modifyDefaultProps = (strDefProps, options) => {
+  const {NEW_LINE_CHAR, TAB_CHAR} = options;
   let strProps = strDefProps.replace('{', '');
   let idxLastBracket = strProps.lastIndexOf('}');
   strProps = strProps.substring(0, idxLastBracket);
@@ -78,8 +84,11 @@ const modifyDefaultProps = strDefProps => {
     props[props.length - 1] = lastItem.trimRight();
   }
 
-  props.push(getNewDefaultProp(DEFAULT_PROP_NAME, DEFAULT_PROP_VALUE));
+  props.push(getNewDefaultProp(options));
   return `{${props.join(',')}${TAB_CHAR}}`;
 };
 
-const getNewDefaultProp = (key = DEFAULT_PROP_NAME, value = DEFAULT_PROP_VALUE) => `${NEW_LINE_CHAR}${TAB_CHAR}${TAB_CHAR}${key}: ${value}${NEW_LINE_CHAR}`;
+const getNewDefaultProp = options => {
+  const {DEFAULT_PROP_NAME, DEFAULT_PROP_VALUE, NEW_LINE_CHAR, TAB_CHAR} = options;
+  return `${NEW_LINE_CHAR}${TAB_CHAR}${TAB_CHAR}${DEFAULT_PROP_NAME}: ${DEFAULT_PROP_VALUE}${NEW_LINE_CHAR}`
+};
