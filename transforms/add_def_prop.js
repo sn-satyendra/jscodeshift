@@ -1,7 +1,7 @@
 module.exports = function(fileInfo, api, options) {
   let j = api.jscodeshift;
   if (!options.propName || !options.propValue) {
-    throw '"propName" and "propValue" options are required.';
+    throw new Error('"propName" and "propValue" options are required.');
   }
   const newOptions = {
     'DEFAULT_PROPS_IDENTIFIER': options.defaultPropsIdentifier || 'static defaultProps',
@@ -9,7 +9,10 @@ module.exports = function(fileInfo, api, options) {
     'TAB_CHAR': options.tab || '  ',
     'NEW_LINE_CHAR': options.newline || '\n',
     'DEFAULT_PROP_NAME': options.propName,
-    'DEFAULT_PROP_VALUE': options.propValue
+    'DEFAULT_PROP_VALUE': options.propValue,
+    'PRINT_OPTIONS': options.printOptions || {
+      tabWidth: 4
+    }
   };
 
   const source = fileInfo.source;
@@ -18,7 +21,7 @@ module.exports = function(fileInfo, api, options) {
   let newSource = source;
 
   if (strDefProps) {
-    const modifiedProps = modifyDefaultProps(strDefProps, newOptions);
+    const modifiedProps = modifyDefaultProps(j, strDefProps, newOptions);
     newSource = source.replace(strDefProps, modifiedProps);
   } else {
     const propTypeBounds = getBlockBoundingIndexes(source, newOptions.PROP_TYPES_IDENTIFIER);
@@ -27,7 +30,7 @@ module.exports = function(fileInfo, api, options) {
     newSource = newSource.slice(0, propTypeBounds.endIndex + 1) + defPropDeclaration + defPropAssignment + newSource.slice(propTypeBounds.endIndex + 1);
   }
 
-  console.log(newSource);
+  // console.log(newSource);
 
   return j(fileInfo.source)
     .findVariableDeclarators('foo')
@@ -56,7 +59,7 @@ const getBlockAsString = (source, blockIdentifier) => {
 const getBlockBoundingIndexes = (source, blockIdentifier) => {
   const defPropStart = getBlockStartIndex(source, blockIdentifier);
   if (defPropStart !== -1) {
-    let startIndex =  source.indexOf('{', defPropStart + 1);
+    let startIndex = source.indexOf('{', defPropStart + 1);
     // Find the ending }
     let stackMatch = ['{'];
     let endIndex = startIndex + 1;
@@ -72,7 +75,7 @@ const getBlockBoundingIndexes = (source, blockIdentifier) => {
       endIndex++;
     }
     return {
-      startIndex, 
+      startIndex,
       endIndex: endIndex + 1
     };
   }
@@ -93,24 +96,30 @@ const getBlockStartIndex = (source, blockIdentifier) => source.indexOf(blockIden
  * @param {String} strDefProps  String representation of default props
  * @param {Object} options      Options for transformation
  */
-const modifyDefaultProps = (strDefProps, options) => {
-  const {NEW_LINE_CHAR, TAB_CHAR} = options;
-  let strProps = strDefProps.replace('{', '');
-  let idxLastBracket = strProps.lastIndexOf('}');
-  strProps = strProps.substring(0, idxLastBracket);
+const modifyDefaultProps = (j, strDefProps, options) => {
+  const BLOCK_IDENTIFIER = 'const defaultProps = ';
+  let parsed = j(BLOCK_IDENTIFIER + strDefProps);
+  parsed.find(j.VariableDeclarator)
+    .forEach(path => {
+      if (path.value.id.name === 'defaultProps') {
+        // getDataCmpAttribute(this)
+        let callExpression = j.callExpression(
+          j.identifier('getDataCmpAttribute'),
+          [j.identifier('this')]
+        );
 
-  let props = strProps.split(',');
+        // dataCmp : getDataCmpAttribute(this)
+        let property = j.objectProperty(
+          j.identifier('dataCmp'),
+          callExpression
+        );
 
-  // If there is already a defaultProp present then remove the \n from end of last prop
-  if (props.length > 0) {
-    let lastItem = props[props.length - 1];
-    lastItem = lastItem.replace(/(\r\n|\n|\r)/gm, '');
-    lastItem = `${NEW_LINE_CHAR}${lastItem}`;
-    props[props.length - 1] = lastItem.trimRight();
-  }
-
-  props.push(getNewDefaultProp(options));
-  return `{${props.join(',')}${TAB_CHAR}}`;
+        // Modify the existing properties
+        path.value.init.properties.push(property);
+      }
+    });
+  console.log(parsed.toSource());
+  return parsed.toSource(options.PRINT_OPTIONS).replace(BLOCK_IDENTIFIER, '');
 };
 
 /**
@@ -119,6 +128,11 @@ const modifyDefaultProps = (strDefProps, options) => {
  * @param {Object} options      Options for transformation
  */
 const getNewDefaultProp = options => {
-  const {DEFAULT_PROP_NAME, DEFAULT_PROP_VALUE, NEW_LINE_CHAR, TAB_CHAR} = options;
+  const {
+    DEFAULT_PROP_NAME,
+    DEFAULT_PROP_VALUE,
+    NEW_LINE_CHAR,
+    TAB_CHAR
+  } = options;
   return `${NEW_LINE_CHAR}${TAB_CHAR}${TAB_CHAR}${DEFAULT_PROP_NAME}: ${DEFAULT_PROP_VALUE}${NEW_LINE_CHAR}`
 };
