@@ -33,7 +33,10 @@ const options = {
     'dynamicImport',
     'nullishCoalescingOperator',
     'optionalChaining',
-  ],
+    'decorators-legacy',
+    'exportDefaultFrom',
+    'exportNamespaceFrom'
+  ]
 };
 
 /**
