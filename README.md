@@ -1,3 +1,7 @@
+# Forked version
+This is a forked version of original jscodeshift. Following are the new features which are added as part of it:
+- Support for legacy decorators
+
 # jscodeshift [![Build Status](https://travis-ci.org/facebook/jscodeshift.svg?branch=master)](https://travis-ci.org/facebook/jscodeshift)
 
 jscodeshift is a toolkit for running codemods over multiple JavaScript or 
