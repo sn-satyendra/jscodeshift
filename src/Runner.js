@@ -139,7 +139,7 @@ function getAllFiles(paths, filter) {
       fs.lstat(file, (err, stat) => {
         if (err) {
           process.stderr.write('Skipping path ' + file + ' which does not exist. \n');
-          resolve();
+          resolve([]);
           return;
         }
 
@@ -182,7 +182,8 @@ function run(transformFile, paths, options) {
             contents += d.toString();
           })
           .on('end', () => {
-            temp.open('jscodeshift', (err, info) => {
+            const ext = path.extname(transformFile);
+            temp.open({ prefix: 'jscodeshift', suffix: ext }, (err, info) => {
               if (err) return reject(err);
               fs.write(info.fd, contents, function (err) {
                 if (err) return reject(err);

@@ -12,15 +12,15 @@
 const fs = require('fs');
 const path = require('path');
 
-function runInlineTest(module, options, input, expectedOutput) {
+function applyTransform(module, options, input, testOptions = {}) {
   // Handle ES6 modules using default export for the transform
   const transform = module.default ? module.default : module;
 
   // Jest resets the module registry after each test, so we need to always get
   // a fresh copy of jscodeshift on every test run.
   let jscodeshift = require('./core');
-  if (module.parser) {
-    jscodeshift = jscodeshift.withParser(module.parser);
+  if (testOptions.parser || module.parser) {
+    jscodeshift = jscodeshift.withParser(testOptions.parser || module.parser);
   }
 
   const output = transform(
@@ -31,9 +31,34 @@ function runInlineTest(module, options, input, expectedOutput) {
     },
     options || {}
   );
-  expect((output || '').trim()).toEqual(expectedOutput.trim());
+
+  return (output || '').trim();
+}
+exports.applyTransform = applyTransform;
+
+function runSnapshotTest(module, options, input) {
+  const output = applyTransform(module, options, input);
+  expect(output).toMatchSnapshot();
+  return output;
+}
+exports.runSnapshotTest = runSnapshotTest;
+
+function runInlineTest(module, options, input, expectedOutput, testOptions) {
+  const output = applyTransform(module, options, input, testOptions);
+  expect(output).toEqual(expectedOutput.trim());
+  return output;
 }
 exports.runInlineTest = runInlineTest;
+
+function extensionForParser(parser) {
+  switch (parser) {
+    case 'ts':
+    case 'tsx':
+      return parser;
+    default:
+      return 'js'
+  }
+}
 
 /**
  * Utility function to run a jscodeshift script within a unit test. This makes
@@ -54,16 +79,17 @@ exports.runInlineTest = runInlineTest;
  * - Test data should be located in a directory called __testfixtures__
  *   alongside the transform and __tests__ directory.
  */
-function runTest(dirName, transformName, options, testFilePrefix) {
+function runTest(dirName, transformName, options, testFilePrefix, testOptions = {}) {
   if (!testFilePrefix) {
     testFilePrefix = transformName;
   }
 
+  const extension = extensionForParser(testOptions.parser)
   const fixtureDir = path.join(dirName, '..', '__testfixtures__');
-  const inputPath = path.join(fixtureDir, testFilePrefix + '.input.js');
+  const inputPath = path.join(fixtureDir, testFilePrefix + `.input.${extension}`);
   const source = fs.readFileSync(inputPath, 'utf8');
   const expectedOutput = fs.readFileSync(
-    path.join(fixtureDir, testFilePrefix + '.output.js'),
+    path.join(fixtureDir, testFilePrefix + `.output.${extension}`),
     'utf8'
   );
   // Assumes transform is one level up from __tests__ directory
@@ -71,7 +97,7 @@ function runTest(dirName, transformName, options, testFilePrefix) {
   runInlineTest(module, options, {
     path: inputPath,
     source
-  }, expectedOutput);
+  }, expectedOutput, testOptions);
 }
 exports.runTest = runTest;
 
@@ -79,13 +105,13 @@ exports.runTest = runTest;
  * Handles some boilerplate around defining a simple jest/Jasmine test for a
  * jscodeshift transform.
  */
-function defineTest(dirName, transformName, options, testFilePrefix) {
+function defineTest(dirName, transformName, options, testFilePrefix, testOptions) {
   const testName = testFilePrefix
     ? `transforms correctly using "${testFilePrefix}" data`
     : 'transforms correctly';
   describe(transformName, () => {
     it(testName, () => {
-      runTest(dirName, transformName, options, testFilePrefix);
+      runTest(dirName, transformName, options, testFilePrefix, testOptions);
     });
   });
 }
@@ -99,3 +125,12 @@ function defineInlineTest(module, options, input, expectedOutput, testName) {
   });
 }
 exports.defineInlineTest = defineInlineTest;
+
+function defineSnapshotTest(module, options, input, testName) {
+  it(testName || 'transforms correctly', () => {
+    runSnapshotTest(module, options, {
+      source: input
+    });
+  });
+}
+exports.defineSnapshotTest = defineSnapshotTest;
